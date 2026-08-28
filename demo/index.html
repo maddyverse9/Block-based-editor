@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Block-Based Editor — A zero-dependency, vanilla JavaScript block editor. Open source library for building canvases, note apps, and node-based editors.">
+  <title>Block Editor — Open Source Block-Based Editor</title>
+
+  <!-- Editor CSS -->
+  <link rel="stylesheet" href="../src/styles/editor.css">
+  <!-- Demo CSS -->
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <!-- ═══ Background Glow ═══ -->
+  <div class="demo-bg-glow"></div>
+  <div class="demo-bg-glow demo-bg-glow--2"></div>
+
+  <!-- ═══ Header ═══ -->
+  <header class="demo-header">
+    <div class="demo-header-left">
+      <div class="demo-logo">
+        <span class="demo-logo-icon">⬡</span>
+        <span class="demo-logo-text">BlockEditor</span>
+      </div>
+      <span class="demo-badge">v1.0 · Open Source</span>
+    </div>
+    <div class="demo-header-right">
+      <button id="theme-toggle" class="demo-btn demo-btn--ghost" title="Toggle theme">
+        <span id="theme-icon">🌙</span>
+      </button>
+      <a href="https://github.com" class="demo-btn demo-btn--ghost" target="_blank" rel="noopener">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══ Hero ═══ -->
+  <section class="demo-hero">
+    <h1 class="demo-hero-title">
+      The <span class="demo-hero-gradient">block editor</span> you've been waiting for.
+    </h1>
+    <p class="demo-hero-subtitle">
+      Zero dependencies. Pure JavaScript. Beautiful out of the box.<br>
+      Build canvases, note apps, and node-based editors with structured JSON output.
+    </p>
+    <div class="demo-hero-features">
+      <div class="demo-feature-pill">📝 Rich Text</div>
+      <div class="demo-feature-pill">📋 Nested Lists</div>
+      <div class="demo-feature-pill">🎨 Color Text</div>
+      <div class="demo-feature-pill">⌨️ Slash Commands</div>
+      <div class="demo-feature-pill">↕️ Drag & Drop</div>
+      <div class="demo-feature-pill">↩️ Undo / Redo</div>
+    </div>
+  </section>
+
+  <!-- ═══ Main Content ═══ -->
+  <main class="demo-main">
+    <div class="demo-layout">
+      <!-- Editor Panel -->
+      <div class="demo-editor-panel">
+        <div class="demo-panel-header">
+          <span class="demo-panel-dot demo-panel-dot--red"></span>
+          <span class="demo-panel-dot demo-panel-dot--yellow"></span>
+          <span class="demo-panel-dot demo-panel-dot--green"></span>
+          <span class="demo-panel-title">Editor</span>
+        </div>
+        <div id="editor" class="demo-editor-container"></div>
+      </div>
+
+      <!-- JSON Output Panel -->
+      <div class="demo-json-panel">
+        <div class="demo-panel-header">
+          <span class="demo-panel-dot demo-panel-dot--red"></span>
+          <span class="demo-panel-dot demo-panel-dot--yellow"></span>
+          <span class="demo-panel-dot demo-panel-dot--green"></span>
+          <span class="demo-panel-title">JSON Output</span>
+          <button id="copy-json" class="demo-copy-btn" title="Copy JSON">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9" rx="1.5"/><path d="M3 11V2.5A1.5 1.5 0 014.5 1H11"/></svg>
+          </button>
+        </div>
+        <pre id="json-output" class="demo-json-output"><code></code></pre>
+      </div>
+    </div>
+  </main>
+
+  <!-- ═══ Footer ═══ -->
+  <footer class="demo-footer">
+    <p>Built with zero dependencies · MIT License · Type <kbd>/</kbd> to get started</p>
+  </footer>
+
+  <!-- Demo Script -->
+  <script type="module" src="demo.js"></script>
+</body>
+</html>

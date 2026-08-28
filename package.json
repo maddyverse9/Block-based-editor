@@ -1,0 +1,28 @@
+{
+  "name": "block-based-editor",
+  "version": "1.0.0",
+  "description": "A zero-dependency, vanilla JavaScript block-based editor that outputs structured JSON. Build canvases, note apps, and node-based editors with ease.",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npx -y serve@latest . -l 3000 --no-clipboard",
+    "start": "npx -y serve@latest . -l 3000 --no-clipboard"
+  },
+  "keywords": [
+    "editor",
+    "block-editor",
+    "rich-text",
+    "contenteditable",
+    "notion-like",
+    "canvas",
+    "node-editor",
+    "vanilla-js",
+    "zero-dependency"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
