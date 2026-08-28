@@ -74,9 +74,9 @@ export class HeadingBlock extends BaseBlock {
   }
 
   serialize() {
+    const base = super.serialize();
     return {
-      id: this.id,
-      type: 'heading',
+      ...base,
       data: {
         level: this._level,
         html: this.contentEl ? this.contentEl.innerHTML : this._html,

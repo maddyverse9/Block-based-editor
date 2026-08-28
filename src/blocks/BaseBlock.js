@@ -20,6 +20,9 @@ export class BaseBlock {
     this.el = null;
     /** @type {HTMLElement} The contenteditable element for this block */
     this.contentEl = null;
+
+    // Canvas positioning properties
+    this.position = data.position || { x: 50, y: 50, w: 400, h: 100, pageIndex: 0, zIndex: 1 };
   }
 
   /**
@@ -77,10 +80,35 @@ export class BaseBlock {
     this.el.appendChild(controls);
     this.el.appendChild(content);
 
-    // Register drag
-    this.editor.dragManager.makeDraggable(this.id, dragHandle, this.el);
+    // Apply absolute positioning styles
+    this.updateStyles();
+
+    // Add resize handles
+    this._addResizeHandles();
+
+    // Register drag (we will pass the block instance to a new DragManager)
+    this.editor.dragManager.makeDraggable(this);
 
     return this.el;
+  }
+
+  updateStyles() {
+    if (!this.el) return;
+    this.el.style.left = `${this.position.x}px`;
+    this.el.style.top = `${this.position.y}px`;
+    this.el.style.width = `${this.position.w}px`;
+    this.el.style.height = `${this.position.h}px`;
+    this.el.style.zIndex = this.position.zIndex;
+  }
+
+  _addResizeHandles() {
+    const positions = ['se', 's', 'e'];
+    positions.forEach(pos => {
+      const handle = document.createElement('div');
+      handle.className = `be-resize-handle be-resize-handle-${pos}`;
+      handle.dataset.resize = pos;
+      this.el.appendChild(handle);
+    });
   }
 
   /**
@@ -203,11 +231,16 @@ export class BaseBlock {
   }
 
   /**
-   * Serialize the block to JSON data. Must be overridden.
+   * Serialize the block to JSON data. Must be overridden, but subclass can call super.serialize() to get base props.
    * @returns {Object}
    */
   serialize() {
-    throw new Error('BaseBlock.serialize() must be overridden');
+    return {
+      id: this.id,
+      type: this.type,
+      position: { ...this.position },
+      data: {}
+    };
   }
 
   /**

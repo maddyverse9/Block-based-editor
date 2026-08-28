@@ -58,9 +58,9 @@ export class ParagraphBlock extends BaseBlock {
   }
 
   serialize() {
+    const base = super.serialize();
     return {
-      id: this.id,
-      type: 'paragraph',
+      ...base,
       data: {
         html: this.contentEl ? this.contentEl.innerHTML : this._html,
       }
