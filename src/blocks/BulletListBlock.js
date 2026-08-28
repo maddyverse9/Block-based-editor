@@ -270,9 +270,9 @@ export class BulletListBlock extends BaseBlock {
   }
 
   serialize() {
+    const base = super.serialize();
     return {
-      id: this.id,
-      type: 'bullet-list',
+      ...base,
       data: {
         items: this._collectItems(),
       }

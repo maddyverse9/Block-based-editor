@@ -2,7 +2,7 @@
  * Demo page script — initializes the editor with sample content
  * and wires up the JSON preview panel and theme toggle.
  */
-import { BlockEditor } from '../src/index.js';
+import { BlockEditor, Exporter } from '../src/index.js';
 
 // ──────────────────────────────────────────────
 // Initialize editor with sample content
@@ -10,54 +10,52 @@ import { BlockEditor } from '../src/index.js';
 
 const sampleBlocks = [
   {
-    type: 'heading',
-    data: { level: 1, html: 'Welcome to Block Editor ✨' }
-  },
-  {
-    type: 'paragraph',
-    data: { html: 'A <strong>zero-dependency</strong>, <em>vanilla JavaScript</em> block editor that outputs structured JSON. Perfect for building canvases, note apps, and node-based editors.' }
-  },
-  {
-    type: 'heading',
-    data: { level: 2, html: 'Getting Started' }
-  },
-  {
-    type: 'paragraph',
-    data: { html: 'Try these actions to explore the editor:' }
-  },
-  {
-    type: 'bullet-list',
+    type: 'contact',
+    position: { x: 40, y: 40, w: 714, h: 80, pageIndex: 0, zIndex: 1 },
     data: {
-      items: [
-        { html: 'Type <code>/</code> to open the <strong>slash command menu</strong>', children: [] },
-        { html: 'Select text to see the <strong>floating toolbar</strong>', children: [
-          { html: 'Try <strong>bold</strong>, <em>italic</em>, <u>underline</u>, and <s>strikethrough</s>', children: [] },
-          { html: 'Apply text colors and background highlights', children: [] },
-        ]},
-        { html: 'Use <code>Tab</code> and <code>Shift+Tab</code> to nest list items', children: [] },
-        { html: 'Drag the ⠿ handle to reorder blocks', children: [] },
-      ]
+      name: 'Alice Developer',
+      title: 'Senior Software Engineer',
+      contactInfo: 'alice@example.com • github.com/alice'
     }
   },
   {
-    type: 'heading',
-    data: { level: 3, html: 'Markdown Shortcuts' }
-  },
-  {
-    type: 'numbered-list',
+    type: 'experience',
+    position: { x: 40, y: 150, w: 714, h: 120, pageIndex: 0, zIndex: 2 },
     data: {
-      items: [
-        { html: 'Type <code>#</code> + space for Heading 1', children: [] },
-        { html: 'Type <code>##</code> + space for Heading 2 (up to <code>######</code>)', children: [] },
-        { html: 'Type <code>-</code> or <code>*</code> + space for bullet list', children: [] },
-        { html: 'Type <code>1.</code> + space for numbered list', children: [] },
-      ]
+      company: 'Tech Innovators Inc.',
+      role: 'Lead Engineer',
+      date: '2021 - Present',
+      description: '<ul><li>Led the migration from legacy monolith to microservices.</li><li>Improved performance by 40% across the board.</li></ul>'
     }
   },
   {
-    type: 'paragraph',
-    data: { html: 'The JSON output updates in real-time in the panel to the right →' }
+    type: 'experience',
+    position: { x: 40, y: 290, w: 714, h: 100, pageIndex: 0, zIndex: 3 },
+    data: {
+      company: 'Web Solutions LLC',
+      role: 'Frontend Developer',
+      date: '2018 - 2021',
+      description: '<ul><li>Built responsive web applications using React.</li></ul>'
+    }
   },
+  {
+    type: 'education',
+    position: { x: 40, y: 410, w: 714, h: 80, pageIndex: 0, zIndex: 4 },
+    data: {
+      institution: 'University of Science',
+      degree: 'B.S. Computer Science',
+      date: '2014 - 2018',
+      description: 'Graduated with Honors.'
+    }
+  },
+  {
+    type: 'skills',
+    position: { x: 40, y: 510, w: 714, h: 50, pageIndex: 0, zIndex: 5 },
+    data: {
+      category: 'Languages & Tools:',
+      skills: 'JavaScript, TypeScript, React, Node.js, CSS, HTML, Git'
+    }
+  }
 ];
 
 const editorContainer = document.getElementById('editor');
@@ -106,6 +104,53 @@ function syntaxHighlightJSON(json) {
     }
   );
 }
+
+// ──────────────────────────────────────────────
+// Zoom & Export Actions
+// ──────────────────────────────────────────────
+
+const zoomInBtn = document.getElementById('zoom-in');
+const zoomOutBtn = document.getElementById('zoom-out');
+const zoomLevelText = document.getElementById('zoom-level');
+
+zoomInBtn.addEventListener('click', () => {
+  editor.setZoom(editor.getZoom() + 0.1);
+});
+
+zoomOutBtn.addEventListener('click', () => {
+  editor.setZoom(editor.getZoom() - 0.1);
+});
+
+editor.events.on('zoom:change', (zoom) => {
+  zoomLevelText.textContent = `${Math.round(zoom * 100)}%`;
+});
+
+document.getElementById('export-pdf').addEventListener('click', async () => {
+  document.getElementById('export-pdf').textContent = 'Generating...';
+  try {
+    await Exporter.exportToPDF(editor);
+  } finally {
+    document.getElementById('export-pdf').textContent = '📄 PDF';
+  }
+});
+
+document.getElementById('export-png').addEventListener('click', async () => {
+  document.getElementById('export-png').textContent = 'Generating...';
+  try {
+    await Exporter.exportToPNG(editor);
+  } finally {
+    document.getElementById('export-png').textContent = '🖼️ PNG';
+  }
+});
+
+document.getElementById('export-ats').addEventListener('click', () => {
+  const text = Exporter.exportToATS(editor);
+  const blob = new Blob([text], { type: 'text/plain' });
+  const link = document.createElement('a');
+  link.download = 'resume.txt';
+  link.href = URL.createObjectURL(blob);
+  link.click();
+});
 
 // ──────────────────────────────────────────────
 // Copy JSON button

@@ -24,6 +24,12 @@ import { HeadingBlock } from '../blocks/HeadingBlock.js';
 import { BulletListBlock } from '../blocks/BulletListBlock.js';
 import { NumberedListBlock } from '../blocks/NumberedListBlock.js';
 
+// Resume blocks
+import { ContactBlock } from '../blocks/resume/ContactBlock.js';
+import { ExperienceBlock } from '../blocks/resume/ExperienceBlock.js';
+import { EducationBlock } from '../blocks/resume/EducationBlock.js';
+import { SkillsBlock } from '../blocks/resume/SkillsBlock.js';
+
 export class BlockEditor {
   /**
    * @param {Object} options
@@ -68,8 +74,6 @@ export class BlockEditor {
     // Load initial blocks or create an empty paragraph
     if (options.initialBlocks && options.initialBlocks.length > 0) {
       this._loadBlocks(options.initialBlocks);
-    } else {
-      this.addBlock({ type: 'paragraph', data: {} });
     }
 
     // Attach UI
@@ -84,6 +88,18 @@ export class BlockEditor {
 
     // Capture initial state
     this.history.captureImmediate();
+  }
+
+  setZoom(level) {
+    this._zoom = Math.max(0.2, Math.min(level, 3));
+    if (this._canvasContainer) {
+      this._canvasContainer.style.transform = `scale(${this._zoom})`;
+    }
+    this.events.emit('zoom:change', this._zoom);
+  }
+
+  getZoom() {
+    return this._zoom || 1;
   }
 
   _registerDefaults() {
@@ -129,6 +145,39 @@ export class BlockEditor {
       description: 'Ordered list with nesting',
       keywords: ['numbered', 'list', 'ordered', 'ol'],
     });
+
+    // Resume Blocks
+    this.registry.register('contact', {
+      blockClass: ContactBlock,
+      label: 'Contact Info',
+      icon: '📇',
+      description: 'Name and contact details for resume',
+      keywords: ['contact', 'name', 'email', 'resume'],
+    });
+
+    this.registry.register('experience', {
+      blockClass: ExperienceBlock,
+      label: 'Experience',
+      icon: '💼',
+      description: 'Job experience entry',
+      keywords: ['experience', 'job', 'work', 'resume'],
+    });
+
+    this.registry.register('education', {
+      blockClass: EducationBlock,
+      label: 'Education',
+      icon: '🎓',
+      description: 'Education entry',
+      keywords: ['education', 'school', 'university', 'resume'],
+    });
+
+    this.registry.register('skills', {
+      blockClass: SkillsBlock,
+      label: 'Skills',
+      icon: '🛠️',
+      description: 'Skills list',
+      keywords: ['skills', 'tools', 'resume'],
+    });
   }
 
   _setupContainer() {
@@ -137,21 +186,46 @@ export class BlockEditor {
     this.container.setAttribute('aria-multiline', 'true');
     this.container.setAttribute('aria-label', 'Block editor');
 
-    // Editor content area
-    this._editorArea = document.createElement('div');
-    this._editorArea.className = 'be-editor-area';
-    this.container.appendChild(this._editorArea);
+    this._zoom = 1;
+    this._pages = [];
 
-    // Click on empty area below blocks → focus last block or add new
-    this._editorArea.addEventListener('click', (e) => {
-      if (e.target === this._editorArea) {
-        const lastId = this.blockOrder[this.blockOrder.length - 1];
-        if (lastId) {
-          const lastBlock = this.blocks.get(lastId);
-          if (lastBlock) lastBlock.focus('end');
-        }
+    // Workspace wrapper (scrollable)
+    this._workspace = document.createElement('div');
+    this._workspace.className = 'be-workspace';
+    this.container.appendChild(this._workspace);
+
+    // Canvas container (scalable)
+    this._canvasContainer = document.createElement('div');
+    this._canvasContainer.className = 'be-canvas-container';
+    this._workspace.appendChild(this._canvasContainer);
+
+    // Click on workspace -> defocus or handle generic click
+    this._workspace.addEventListener('mousedown', (e) => {
+      if (e.target === this._workspace || e.target === this._canvasContainer || e.target.classList.contains('be-page')) {
+        // Deselect blocks when clicking empty space
+        this.events.emit('workspace:click');
       }
     });
+  }
+
+  /**
+   * Get or create a page by index
+   * @param {number} pageIndex
+   * @returns {HTMLElement} The content element of the page
+   */
+  _getPageContentEl(pageIndex) {
+    while (this._pages.length <= pageIndex) {
+      const page = document.createElement('div');
+      page.className = 'be-page';
+      
+      const pageContent = document.createElement('div');
+      pageContent.className = 'be-page-content';
+      page.appendChild(pageContent);
+      
+      this._canvasContainer.appendChild(page);
+      this._pages.push(pageContent);
+    }
+    return this._pages[pageIndex];
   }
 
   _loadBlocks(blocksData) {
@@ -192,13 +266,14 @@ export class BlockEditor {
     });
     this.blocks.clear();
     this.blockOrder = [];
-    this._editorArea.innerHTML = '';
+    
+    // Clear pages
+    this._canvasContainer.innerHTML = '';
+    this._pages = [];
 
     // Load new blocks
     if (json.blocks && json.blocks.length > 0) {
       this._loadBlocks(json.blocks);
-    } else {
-      this.addBlock({ type: 'paragraph', data: {} });
     }
 
     if (!options.skipHistory) {
@@ -218,7 +293,9 @@ export class BlockEditor {
 
     this.blocks.set(block.id, block);
     this.blockOrder.push(block.id);
-    this._editorArea.appendChild(el);
+    
+    const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
+    pageContentEl.appendChild(el);
 
     if (!options.silent) {
       this.events.emit('block:add', { blockId: block.id });
@@ -228,38 +305,17 @@ export class BlockEditor {
     return block;
   }
 
-  /**
-   * Add a block after a specific block.
-   * @param {string} afterBlockId
-   * @param {Object} blockData
-   * @returns {import('../blocks/BaseBlock.js').BaseBlock}
-   */
   addBlockAfter(afterBlockId, blockData) {
-    const block = this._createBlock(blockData);
-    const el = block.render();
-
-    const afterIdx = this.blockOrder.indexOf(afterBlockId);
-    if (afterIdx === -1) {
-      // Fallback: add at end
-      this.blocks.set(block.id, block);
-      this.blockOrder.push(block.id);
-      this._editorArea.appendChild(el);
-    } else {
-      this.blocks.set(block.id, block);
-      this.blockOrder.splice(afterIdx + 1, 0, block.id);
-
-      const afterBlock = this.blocks.get(afterBlockId);
-      if (afterBlock && afterBlock.el.nextSibling) {
-        this._editorArea.insertBefore(el, afterBlock.el.nextSibling);
-      } else {
-        this._editorArea.appendChild(el);
-      }
+    const afterBlock = this.blocks.get(afterBlockId);
+    if (afterBlock) {
+      // Default to slightly below the anchor block
+      blockData.position = blockData.position || {
+        ...afterBlock.position,
+        y: afterBlock.position.y + afterBlock.position.h + 10
+      };
     }
-
-    this.events.emit('block:add', { blockId: block.id });
-    block.focus('start');
-
-    return block;
+    
+    return this.addBlock(blockData);
   }
 
   /**
@@ -274,16 +330,6 @@ export class BlockEditor {
     block.destroy();
     this.blocks.delete(blockId);
     this.blockOrder.splice(idx, 1);
-
-    // Ensure there's always at least one block
-    if (this.blockOrder.length === 0) {
-      this.addBlock({ type: 'paragraph', data: {} });
-    } else {
-      // Focus adjacent block
-      const focusIdx = Math.min(idx, this.blockOrder.length - 1);
-      const focusBlock = this.blocks.get(this.blockOrder[focusIdx]);
-      focusBlock?.focus('end');
-    }
 
     this.events.emit('block:remove', { blockId });
   }
@@ -301,14 +347,16 @@ export class BlockEditor {
     const idx = this.blockOrder.indexOf(blockId);
     const oldEl = oldBlock.el;
 
+    // Maintain original position and z-index
+    blockData.position = { ...oldBlock.position };
+    
     // Resolve heading subtypes (heading-2, heading-3, etc.)
     let resolvedType = newType;
-    let blockData = { type: newType, data: { ...data } };
     
     if (newType.startsWith('heading-')) {
       const level = parseInt(newType.split('-')[1]);
       resolvedType = 'heading';
-      blockData = { type: 'heading', data: { ...data, level } };
+      blockData = { ...blockData, type: 'heading', data: { ...data, level } };
     } else if (newType === 'heading' && !data.level) {
       blockData.data.level = data.level || 1;
     }
@@ -323,7 +371,10 @@ export class BlockEditor {
     const newEl = newBlock.render();
 
     // Replace in DOM
-    this._editorArea.replaceChild(newEl, oldEl);
+    const oldParent = oldEl.parentNode;
+    if (oldParent) {
+      oldParent.replaceChild(newEl, oldEl);
+    }
 
     // Replace in maps
     oldBlock.destroy();
@@ -337,40 +388,26 @@ export class BlockEditor {
   }
 
   /**
-   * Move a block relative to another.
-   * @param {string} draggedId
-   * @param {string} targetId
-   * @param {'before'|'after'} position
+   * Move a block to a new position.
+   * @param {string} blockId
+   * @param {Object} newPosition
    */
-  moveBlock(draggedId, targetId, position) {
-    const dragIdx = this.blockOrder.indexOf(draggedId);
-    const targetIdx = this.blockOrder.indexOf(targetId);
-    if (dragIdx === -1 || targetIdx === -1) return;
+  moveBlock(blockId, newPosition) {
+    const block = this.blocks.get(blockId);
+    if (!block) return;
 
-    const dragBlock = this.blocks.get(draggedId);
-    const targetBlock = this.blocks.get(targetId);
-    if (!dragBlock || !targetBlock) return;
+    const oldPageIndex = block.position.pageIndex || 0;
+    const newPageIndex = newPosition.pageIndex || 0;
 
-    // Remove from current position
-    this.blockOrder.splice(dragIdx, 1);
+    block.position = { ...block.position, ...newPosition };
+    block.updateStyles();
 
-    // Recalculate target index after removal
-    const newTargetIdx = this.blockOrder.indexOf(targetId);
-    const insertIdx = position === 'before' ? newTargetIdx : newTargetIdx + 1;
-    this.blockOrder.splice(insertIdx, 0, draggedId);
-
-    // Move in DOM
-    if (position === 'before') {
-      this._editorArea.insertBefore(dragBlock.el, targetBlock.el);
-    } else {
-      if (targetBlock.el.nextSibling) {
-        this._editorArea.insertBefore(dragBlock.el, targetBlock.el.nextSibling);
-      } else {
-        this._editorArea.appendChild(dragBlock.el);
-      }
+    if (oldPageIndex !== newPageIndex) {
+      const newPageEl = this._getPageContentEl(newPageIndex);
+      newPageEl.appendChild(block.el);
     }
 
-    this.events.emit('block:move', { blockId: draggedId });
+    this.events.emit('block:move', { blockId });
     this.history.captureImmediate();
   }
 

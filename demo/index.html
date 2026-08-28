@@ -57,6 +57,20 @@
 
   <!-- ═══ Main Content ═══ -->
   <main class="demo-main">
+    <!-- Workspace Controls -->
+    <div class="demo-toolbar" style="display: flex; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--be-border); justify-content: space-between;">
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="zoom-out" class="demo-btn demo-btn--ghost" title="Zoom Out">-</button>
+        <span id="zoom-level" style="font-size: 14px; min-width: 48px; text-align: center;">100%</span>
+        <button id="zoom-in" class="demo-btn demo-btn--ghost" title="Zoom In">+</button>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <button id="export-pdf" class="demo-btn demo-btn--ghost">📄 PDF</button>
+        <button id="export-png" class="demo-btn demo-btn--ghost">🖼️ PNG</button>
+        <button id="export-ats" class="demo-btn demo-btn--ghost">📝 ATS Text</button>
+      </div>
+    </div>
+
     <div class="demo-layout">
       <!-- Editor Panel -->
       <div class="demo-editor-panel">

@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "dev": "npx -y serve@latest . -l 3000 --no-clipboard",
-    "start": "npx -y serve@latest . -l 3000 --no-clipboard"
+    "dev": "vite",
+    "start": "vite"
   },
   "keywords": [
     "editor",
@@ -24,5 +24,12 @@
   "repository": {
     "type": "git",
     "url": ""
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1"
+  },
+  "devDependencies": {
+    "vite": "^8.2.2"
   }
 }

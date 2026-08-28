@@ -13,3 +13,12 @@ export { ParagraphBlock } from './blocks/ParagraphBlock.js';
 export { HeadingBlock } from './blocks/HeadingBlock.js';
 export { BulletListBlock } from './blocks/BulletListBlock.js';
 export { NumberedListBlock } from './blocks/NumberedListBlock.js';
+
+// Resume Blocks
+export { ContactBlock } from './blocks/resume/ContactBlock.js';
+export { ExperienceBlock } from './blocks/resume/ExperienceBlock.js';
+export { EducationBlock } from './blocks/resume/EducationBlock.js';
+export { SkillsBlock } from './blocks/resume/SkillsBlock.js';
+
+// Utilities
+export { Exporter } from './core/Exporter.js';

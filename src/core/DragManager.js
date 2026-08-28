@@ -1,6 +1,5 @@
 /**
- * DragManager — Handles block reordering via native HTML Drag & Drop API.
- * Shows visual drop indicators between blocks.
+ * DragManager — Handles block free positioning and resizing via mouse events.
  */
 export class DragManager {
   /**
@@ -8,113 +7,153 @@ export class DragManager {
    */
   constructor(editor) {
     this.editor = editor;
-    this._draggedBlockId = null;
-    this._dropIndicator = null;
-    this._dropTarget = null; // { blockId, position: 'before' | 'after' }
+    this._dragState = null;
+    this._resizeState = null;
 
-    this._createDropIndicator();
-  }
+    this._onMouseMove = this._onMouseMove.bind(this);
+    this._onMouseUp = this._onMouseUp.bind(this);
 
-  _createDropIndicator() {
-    this._dropIndicator = document.createElement('div');
-    this._dropIndicator.className = 'be-drop-indicator';
-    this._dropIndicator.style.display = 'none';
+    document.addEventListener('mousemove', this._onMouseMove);
+    document.addEventListener('mouseup', this._onMouseUp);
   }
 
   /**
-   * Make a block draggable via its handle element.
-   * @param {string} blockId
-   * @param {HTMLElement} handleEl - The drag handle element
-   * @param {HTMLElement} blockEl - The entire block wrapper
+   * Make a block freely draggable and resizable.
+   * @param {import('../blocks/BaseBlock.js').BaseBlock} block
    */
-  makeDraggable(blockId, handleEl, blockEl) {
-    blockEl.setAttribute('draggable', 'false'); // Controlled by handle
-    
-    handleEl.addEventListener('mousedown', () => {
-      blockEl.setAttribute('draggable', 'true');
-    });
+  makeDraggable(block) {
+    const handleEl = block.el.querySelector('.be-block-drag-handle');
+    if (handleEl) {
+      handleEl.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return; // Only left click
+        e.preventDefault();
+        
+        const zoom = this.editor.getZoom();
+        this._dragState = {
+          block,
+          startX: e.clientX,
+          startY: e.clientY,
+          initialX: block.position.x,
+          initialY: block.position.y,
+          initialPageIndex: block.position.pageIndex || 0,
+        };
 
-    handleEl.addEventListener('mouseup', () => {
-      blockEl.setAttribute('draggable', 'false');
-    });
+        block.el.classList.add('be-block--dragging');
+        // Bring to front
+        block.position.zIndex = (block.position.zIndex || 1) + 100;
+        block.updateStyles();
+      });
+    }
 
-    blockEl.addEventListener('dragstart', (e) => {
-      this._draggedBlockId = blockId;
-      blockEl.classList.add('be-block--dragging');
+    const resizeHandles = block.el.querySelectorAll('.be-resize-handle');
+    resizeHandles.forEach(handle => {
+      handle.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        const zoom = this.editor.getZoom();
+        this._resizeState = {
+          block,
+          type: handle.dataset.resize, // 'e', 's', 'se'
+          startX: e.clientX,
+          startY: e.clientY,
+          initialW: block.position.w,
+          initialH: block.position.h,
+        };
+
+        block.el.classList.add('be-block--dragging');
+      });
+    });
+  }
+
+  _onMouseMove(e) {
+    const zoom = this.editor.getZoom();
+    const PAGE_HEIGHT = 1123;
+    const GRID_SIZE = 10; // Snap to 10px grid
+
+    if (this._dragState) {
+      e.preventDefault();
+      const { block, startX, startY, initialX, initialY, initialPageIndex } = this._dragState;
+
+      const dx = (e.clientX - startX) / zoom;
+      const dy = (e.clientY - startY) / zoom;
+
+      let newX = Math.round((initialX + dx) / GRID_SIZE) * GRID_SIZE;
       
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', blockId);
+      // Calculate global Y
+      const initialGlobalY = initialPageIndex * PAGE_HEIGHT + initialY;
+      let newGlobalY = Math.round((initialGlobalY + dy) / GRID_SIZE) * GRID_SIZE;
 
-      // Append drop indicator to editor
-      this.editor.container.appendChild(this._dropIndicator);
-    });
+      // Calculate new page and local Y
+      let newPageIndex = Math.floor(newGlobalY / PAGE_HEIGHT);
+      let newLocalY = newGlobalY % PAGE_HEIGHT;
 
-    blockEl.addEventListener('dragend', () => {
-      this._draggedBlockId = null;
-      blockEl.classList.remove('be-block--dragging');
-      blockEl.setAttribute('draggable', 'false');
-      this._hideDropIndicator();
-      this._dropTarget = null;
-    });
-
-    blockEl.addEventListener('dragover', (e) => {
-      if (!this._draggedBlockId || this._draggedBlockId === blockId) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-
-      const rect = blockEl.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      const position = e.clientY < midY ? 'before' : 'after';
-
-      this._dropTarget = { blockId, position };
-      this._showDropIndicator(blockEl, position);
-    });
-
-    blockEl.addEventListener('dragleave', (e) => {
-      // Only hide if truly leaving the element
-      if (!blockEl.contains(e.relatedTarget)) {
-        this._hideDropIndicator();
+      // Push down logic: if block crosses the page boundary
+      if (newLocalY + block.position.h > PAGE_HEIGHT) {
+        // Push it to the next page
+        newPageIndex += 1;
+        newLocalY = 20; // Some top margin on the new page
       }
-    });
 
-    blockEl.addEventListener('drop', (e) => {
+      // Prevent moving before page 0
+      if (newPageIndex < 0) {
+        newPageIndex = 0;
+        newLocalY = Math.max(0, newLocalY);
+      }
+
+      this.editor.moveBlock(block.id, {
+        x: newX,
+        y: newLocalY,
+        pageIndex: newPageIndex
+      });
+    }
+
+    if (this._resizeState) {
       e.preventDefault();
-      if (!this._draggedBlockId || !this._dropTarget) return;
-      if (this._draggedBlockId === this._dropTarget.blockId) return;
+      const { block, type, startX, startY, initialW, initialH } = this._resizeState;
 
-      this.editor.moveBlock(
-        this._draggedBlockId,
-        this._dropTarget.blockId,
-        this._dropTarget.position
-      );
+      const dx = (e.clientX - startX) / zoom;
+      const dy = (e.clientY - startY) / zoom;
 
-      this._hideDropIndicator();
-      this._draggedBlockId = null;
-      this._dropTarget = null;
-    });
+      let newW = initialW;
+      let newH = initialH;
+
+      if (type.includes('e')) {
+        newW = Math.max(50, Math.round((initialW + dx) / GRID_SIZE) * GRID_SIZE);
+      }
+      if (type.includes('s')) {
+        newH = Math.max(20, Math.round((initialH + dy) / GRID_SIZE) * GRID_SIZE);
+      }
+
+      block.position.w = newW;
+      block.position.h = newH;
+      block.updateStyles();
+      this.editor.events.emit('block:resize', { blockId: block.id });
+    }
   }
 
-  _showDropIndicator(blockEl, position) {
-    this._dropIndicator.style.display = 'block';
-    const rect = blockEl.getBoundingClientRect();
-    const containerRect = this.editor.container.getBoundingClientRect();
+  _onMouseUp(e) {
+    if (this._dragState) {
+      const { block } = this._dragState;
+      block.el.classList.remove('be-block--dragging');
+      // Reset z-index
+      block.position.zIndex = Math.max(1, block.position.zIndex - 100);
+      block.updateStyles();
+      this.editor.history.captureImmediate();
+      this._dragState = null;
+    }
 
-    const top = position === 'before'
-      ? rect.top - containerRect.top - 2
-      : rect.bottom - containerRect.top - 2;
-
-    this._dropIndicator.style.top = `${top}px`;
-    this._dropIndicator.style.left = '0';
-    this._dropIndicator.style.width = '100%';
-  }
-
-  _hideDropIndicator() {
-    if (this._dropIndicator) {
-      this._dropIndicator.style.display = 'none';
+    if (this._resizeState) {
+      const { block } = this._resizeState;
+      block.el.classList.remove('be-block--dragging');
+      this.editor.history.captureImmediate();
+      this._resizeState = null;
     }
   }
 
   destroy() {
-    this._dropIndicator?.remove();
+    document.removeEventListener('mousemove', this._onMouseMove);
+    document.removeEventListener('mouseup', this._onMouseUp);
   }
 }
