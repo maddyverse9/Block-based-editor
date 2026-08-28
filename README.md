@@ -4,16 +4,19 @@ A **zero-dependency**, vanilla JavaScript block-based editor that outputs struct
 
 ## ✨ Features
 
+- **📄 Canvas & Pagination** — Absolute-positioned blocks tracked across multiple A4 pages
+- **↕️ Free Drag & Resize** — Freely move blocks and snap to a 10px grid. Adjust width/height with handles
+- **🔍 Zoom Controls** — Scale the workspace for better precision and overview
+- **📤 Built-in Exporter** — Export your canvas to PDF, high-res PNG, or raw ATS-friendly text
 - **📝 Rich Text** — Bold, italic, underline, strikethrough, inline code
-- **🎨 Colors** — Text color and background highlight with curated palettes
 - **📋 Nested Lists** — Bullet and numbered lists with Tab/Shift+Tab nesting
 - **📌 Headings** — H1 through H6 with markdown shortcuts
+- **📇 Resume Blocks** — Pre-built blocks for Contact, Experience, Education, and Skills
 - **⌨️ Slash Commands** — Type `/` to insert any block type
 - **🖱️ Floating Toolbar** — Select text to format inline
-- **↕️ Drag & Drop** — Reorder blocks with drag handles
 - **↩️ Undo / Redo** — Full history with Cmd/Ctrl+Z
 - **🌙 Dark Mode** — Automatic dark/light mode support
-- **📦 Zero Dependencies** — Pure vanilla JS, no build step required
+- **📦 Zero Dependencies** — Core logic is vanilla JS (uses `html2canvas` & `jspdf` for export)
 - **🔌 Extensible** — Register custom block types via the block registry
 
 ## 🚀 Quick Start
@@ -72,9 +75,24 @@ const editor = new BlockEditor({
 ```js
 editor.getJSON()            // Get document as structured JSON
 editor.setJSON(json)        // Set document from JSON
-editor.addBlock(blockData)  // Add a block at the end
+editor.addBlock(blockData)  // Add a block to the canvas
 editor.removeBlock(blockId) // Remove a block by ID
+editor.moveBlock(id, pos)   // Move block to { x, y, pageIndex }
+editor.setZoom(level)       // Set canvas zoom level (e.g. 1.2 for 120%)
+editor.getZoom()            // Returns current zoom level
 editor.destroy()            // Clean up and remove the editor
+```
+
+### Exporter API
+
+The editor includes an `Exporter` utility to convert the canvas to standard resume formats:
+
+```js
+import { Exporter } from './src/index.js';
+
+await Exporter.exportToPDF(editor); // Generates multi-page A4 PDF
+await Exporter.exportToPNG(editor); // Captures high-res PNG
+const text = Exporter.exportToATS(editor); // Returns ATS-friendly plain text
 ```
 
 ## 🧱 Block Types
@@ -85,6 +103,10 @@ editor.destroy()            // Clean up and remove the editor
 | `heading` | `/heading1` ... `/heading6` | `#` to `######` + space | Heading levels 1-6 |
 | `bullet-list` | `/bullet` | `-` or `*` + space | Unordered nested list |
 | `numbered-list` | `/numbered` | `1.` + space | Ordered nested list |
+| `contact` | `/contact` | — | Resume Contact info block |
+| `experience` | `/experience` | — | Resume Experience entry |
+| `education` | `/education` | — | Resume Education entry |
+| `skills` | `/skills` | — | Resume Skills group |
 
 ## ⌨️ Keyboard Shortcuts
 
@@ -136,7 +158,7 @@ class MyCustomBlock extends BaseBlock {
   }
 
   serialize() {
-    return { id: this.id, type: 'custom', data: {} };
+    return { ...super.serialize(), data: {} };
   }
 }
 
