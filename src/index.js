@@ -13,6 +13,7 @@ export { ParagraphBlock } from './blocks/ParagraphBlock.js';
 export { HeadingBlock } from './blocks/HeadingBlock.js';
 export { BulletListBlock } from './blocks/BulletListBlock.js';
 export { NumberedListBlock } from './blocks/NumberedListBlock.js';
+export { ColumnsBlock } from './blocks/ColumnsBlock.js';
 
 // Resume Blocks
 export { ContactBlock } from './blocks/resume/ContactBlock.js';

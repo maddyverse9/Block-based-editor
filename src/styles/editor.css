@@ -143,7 +143,57 @@
   opacity: 0.7;
   z-index: 9999 !important;
   box-shadow: var(--be-shadow);
+  position: absolute !important; /* Ensure it floats freely when dragged */
 }
+
+.be-block--drop-left {
+  box-shadow: -4px 0 0 0 var(--be-primary) !important;
+}
+
+.be-block--drop-right {
+  box-shadow: 4px 0 0 0 var(--be-primary) !important;
+}
+
+/* ─── Columns Layout ─── */
+.be-columns-block {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  gap: 16px;
+  min-height: 50px;
+}
+
+.be-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Spacing between nested blocks */
+  padding: 4px;
+  border-radius: var(--be-radius-sm);
+  border: 1px dashed transparent;
+  transition: border-color var(--be-transition), background var(--be-transition);
+}
+
+.be-block:hover .be-column, .be-block--focused .be-column {
+  border-color: var(--be-border);
+}
+
+.be-column--drag-over {
+  background: var(--be-primary-bg);
+  border-color: var(--be-primary);
+}
+
+/* Hybrid Layout Override for nested blocks */
+.be-column .be-block {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  height: auto !important;
+  padding: 2px 0;
+}
+
 
 /* ─── Block Controls ─── */
 .be-block-controls {

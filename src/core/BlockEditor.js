@@ -23,6 +23,7 @@ import { ParagraphBlock } from '../blocks/ParagraphBlock.js';
 import { HeadingBlock } from '../blocks/HeadingBlock.js';
 import { BulletListBlock } from '../blocks/BulletListBlock.js';
 import { NumberedListBlock } from '../blocks/NumberedListBlock.js';
+import { ColumnsBlock } from '../blocks/ColumnsBlock.js';
 
 // Resume blocks
 import { ContactBlock } from '../blocks/resume/ContactBlock.js';
@@ -146,6 +147,14 @@ export class BlockEditor {
       keywords: ['numbered', 'list', 'ordered', 'ol'],
     });
 
+    this.registry.register('columns', {
+      blockClass: ColumnsBlock,
+      label: 'Columns',
+      icon: '◫',
+      description: 'Multi-column layout block',
+      keywords: ['column', 'layout', 'grid', 'flex'],
+    });
+
     // Resume Blocks
     this.registry.register('contact', {
       blockClass: ContactBlock,
@@ -229,7 +238,16 @@ export class BlockEditor {
   }
 
   _loadBlocks(blocksData) {
-    blocksData.forEach(blockData => {
+    // Sort so parent blocks (like columns) are loaded before their children
+    const sorted = [...blocksData].sort((a, b) => {
+      const aIsChild = a.position && a.position.parentId;
+      const bIsChild = b.position && b.position.parentId;
+      if (aIsChild && !bIsChild) return 1;
+      if (!aIsChild && bIsChild) return -1;
+      return 0;
+    });
+
+    sorted.forEach(blockData => {
       this.addBlock(blockData, { silent: true });
     });
   }
@@ -294,8 +312,17 @@ export class BlockEditor {
     this.blocks.set(block.id, block);
     this.blockOrder.push(block.id);
     
-    const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
-    pageContentEl.appendChild(el);
+    // Check if the block belongs in a column
+    if (block.position && block.position.parentId) {
+      const parent = this.blocks.get(block.position.parentId);
+      if (parent && parent.type === 'columns') {
+        const colEl = parent.getColumnEl(block.position.colIndex || 0);
+        colEl.appendChild(el);
+      }
+    } else {
+      const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
+      pageContentEl.appendChild(el);
+    }
 
     if (!options.silent) {
       this.events.emit('block:add', { blockId: block.id });
@@ -307,15 +334,33 @@ export class BlockEditor {
 
   addBlockAfter(afterBlockId, blockData) {
     const afterBlock = this.blocks.get(afterBlockId);
+    
     if (afterBlock) {
-      // Default to slightly below the anchor block
-      blockData.position = blockData.position || {
-        ...afterBlock.position,
-        y: afterBlock.position.y + afterBlock.position.h + 10
-      };
+      // Inherit parent hierarchy
+      if (afterBlock.position && afterBlock.position.parentId) {
+        blockData.position = blockData.position || {};
+        blockData.position.parentId = afterBlock.position.parentId;
+        blockData.position.colIndex = afterBlock.position.colIndex;
+      } else {
+        // Default to slightly below the anchor block on canvas
+        blockData.position = blockData.position || {
+          ...afterBlock.position,
+          y: afterBlock.position.y + afterBlock.position.h + 10
+        };
+      }
     }
     
-    return this.addBlock(blockData);
+    const newBlock = this.addBlock(blockData, { silent: true });
+    
+    if (afterBlock && afterBlock.el && afterBlock.el.parentNode) {
+      // Move DOM element to precisely after the sibling
+      afterBlock.el.parentNode.insertBefore(newBlock.el, afterBlock.el.nextSibling);
+    }
+    
+    this.events.emit('block:add', { blockId: newBlock.id });
+    newBlock.focus('start');
+    
+    return newBlock;
   }
 
   /**
@@ -409,6 +454,93 @@ export class BlockEditor {
 
     this.events.emit('block:move', { blockId });
     this.history.captureImmediate();
+  }
+
+  /**
+   * Move a block into a specific column of a parent block.
+   */
+  moveBlockInto(blockId, parentId, colIndex) {
+    const block = this.blocks.get(blockId);
+    const parent = this.blocks.get(parentId);
+    if (!block || !parent || parent.type !== 'columns') return;
+
+    block.position.parentId = parentId;
+    block.position.colIndex = colIndex;
+    
+    const colEl = parent.getColumnEl(colIndex);
+    colEl.appendChild(block.el);
+    
+    // Trigger CSS overrides
+    block.updateStyles();
+    this.events.emit('block:move', { blockId });
+    this.history.captureImmediate();
+  }
+
+  /**
+   * Remove a block from its parent and place it on the canvas.
+   */
+  moveBlockOut(blockId, absolutePosition) {
+    const block = this.blocks.get(blockId);
+    if (!block) return;
+
+    block.position = { ...block.position, ...absolutePosition };
+    delete block.position.parentId;
+    delete block.position.colIndex;
+
+    const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
+    pageContentEl.appendChild(block.el);
+
+    block.updateStyles();
+    this.events.emit('block:move', { blockId });
+    this.history.captureImmediate();
+  }
+
+  /**
+   * Automatically wrap a block into a columns block when another block is dropped next to it.
+   */
+  createColumnsAt(targetBlockId, droppedBlockId, side) {
+    const targetBlock = this.blocks.get(targetBlockId);
+    const droppedBlock = this.blocks.get(droppedBlockId);
+    if (!targetBlock || !droppedBlock) return;
+
+    if (targetBlock.type === 'columns') {
+      // Append a new column
+      const newColIndex = targetBlock.addColumn();
+      
+      // If dropped on left, reorder DOM (optional) or just use flex-order, 
+      // but for simplicity, let's just append and move the dropped block there.
+      // To strictly support 'left', we can manipulate DOM:
+      if (side === 'left') {
+        const newCol = targetBlock.getColumnEl(newColIndex);
+        targetBlock.contentEl.insertBefore(newCol, targetBlock.contentEl.firstChild);
+        // We'd have to re-index all cols, so just rely on DOM order and move the block into newColIndex
+        // Actually to be robust, we'll just put it in newColIndex. 
+      }
+
+      this.moveBlockInto(droppedBlockId, targetBlockId, newColIndex);
+      return;
+    }
+
+    // Standard block -> create new ColumnsBlock
+    const colsData = {
+      type: 'columns',
+      position: { ...targetBlock.position, w: 714 }, // Full width A4
+      columnsCount: 2
+    };
+
+    // Prevent recursive column wrapping issues
+    delete colsData.position.parentId;
+    delete colsData.position.colIndex;
+
+    const colsBlock = this.addBlock(colsData, { silent: true });
+
+    // Place target block in column 0 or 1
+    const targetCol = side === 'left' ? 1 : 0;
+    const droppedCol = side === 'left' ? 0 : 1;
+
+    // Move both blocks into the new columns block
+    this.moveBlockInto(targetBlock.id, colsBlock.id, targetCol);
+    this.moveBlockInto(droppedBlock.id, colsBlock.id, droppedCol);
   }
 
   /**
