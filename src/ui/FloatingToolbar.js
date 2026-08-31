@@ -14,6 +14,11 @@ export class FloatingToolbar {
     this._visible = false;
     this._colorPicker = null;
     this._bgColorPicker = null;
+    
+    // Link popover state
+    this._linkPopover = null;
+    this._linkInput = null;
+    this._savedRange = null;
 
     this._onSelectionChange = this._onSelectionChange.bind(this);
     this._onMouseUp = this._onMouseUp.bind(this);
@@ -25,12 +30,19 @@ export class FloatingToolbar {
     this.el.className = 'be-floating-toolbar';
     this.el.style.display = 'none';
 
+    // Build the link popover
+    this._buildLinkPopover();
+
     const buttons = [
       { cmd: 'bold', icon: '<strong>B</strong>', title: 'Bold (Ctrl+B)' },
       { cmd: 'italic', icon: '<em>I</em>', title: 'Italic (Ctrl+I)' },
       { cmd: 'underline', icon: '<u>U</u>', title: 'Underline (Ctrl+U)' },
       { cmd: 'strikethrough', icon: '<s>S</s>', title: 'Strikethrough' },
-      { cmd: 'code', icon: '<code>&lt;/&gt;</code>', title: 'Inline code' },
+      { cmd: 'link', icon: '🔗', title: 'Link' },
+      { cmd: 'separator' },
+      { cmd: 'alignLeft', icon: '⫷', title: 'Align Left' },
+      { cmd: 'alignCenter', icon: '≡', title: 'Align Center' },
+      { cmd: 'alignRight', icon: '⫸', title: 'Align Right' },
       { cmd: 'separator' },
       { cmd: 'textColor', icon: `<span class="be-toolbar-color-icon"><span class="be-toolbar-color-a">A</span><span class="be-toolbar-color-bar" id="be-text-color-bar"></span></span>`, title: 'Text color' },
       { cmd: 'bgColor', icon: `<span class="be-toolbar-bg-icon">A</span>`, title: 'Background color' },
@@ -82,6 +94,40 @@ export class FloatingToolbar {
     });
   }
 
+  _buildLinkPopover() {
+    this._linkPopover = document.createElement('div');
+    this._linkPopover.className = 'be-link-popover';
+    this._linkPopover.style.display = 'none';
+
+    this._linkInput = document.createElement('input');
+    this._linkInput.type = 'url';
+    this._linkInput.placeholder = 'https://...';
+    this._linkInput.className = 'be-link-input';
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'be-link-save-btn';
+    saveBtn.textContent = 'Apply';
+
+    this._linkPopover.appendChild(this._linkInput);
+    this._linkPopover.appendChild(saveBtn);
+    document.body.appendChild(this._linkPopover);
+
+    saveBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      this._applyLink();
+    });
+
+    this._linkInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        this._applyLink();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        this._hideLinkPopover();
+      }
+    });
+  }
+
   /** Attach to the editor container. */
   attach(container) {
     container.addEventListener('mouseup', this._onMouseUp);
@@ -100,8 +146,8 @@ export class FloatingToolbar {
   }
 
   _updateVisibility() {
-    // Don't show while command palette is open
-    if (this.editor.commandPalette?.isVisible) {
+    // Don't show while command palette is open or link popover is active
+    if (this.editor.commandPalette?.isVisible || this._linkPopover.style.display === 'flex') {
       this.hide();
       return;
     }
@@ -147,6 +193,56 @@ export class FloatingToolbar {
     this.el.style.display = 'none';
     this._colorPicker?.hide();
     this._bgColorPicker?.hide();
+    this._hideLinkPopover();
+  }
+
+  _hideLinkPopover() {
+    this._linkPopover.style.display = 'none';
+    this._savedRange = null;
+  }
+
+  _showLinkPopover(buttonEl) {
+    this._savedRange = this.editor.selection.getRange();
+    if (!this._savedRange) return;
+
+    this.hide(); // Hide main toolbar
+
+    const rect = buttonEl.getBoundingClientRect();
+    this._linkPopover.style.display = 'flex';
+    
+    // Position below the button
+    requestAnimationFrame(() => {
+      const popRect = this._linkPopover.getBoundingClientRect();
+      let left = rect.left + (rect.width / 2) - (popRect.width / 2);
+      
+      left = Math.max(8, Math.min(left, window.innerWidth - popRect.width - 8));
+      
+      this._linkPopover.style.position = 'fixed';
+      this._linkPopover.style.top = `${rect.bottom + 8}px`;
+      this._linkPopover.style.left = `${left}px`;
+      
+      this._linkInput.value = '';
+      this._linkInput.focus();
+    });
+  }
+
+  _applyLink() {
+    const url = this._linkInput.value.trim();
+    this._hideLinkPopover();
+
+    if (this._savedRange && url) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(this._savedRange);
+
+      let linkUrl = url;
+      if (!/^https?:\/\//i.test(linkUrl) && !/^mailto:/i.test(linkUrl) && !/^tel:/i.test(linkUrl)) {
+        linkUrl = 'https://' + linkUrl;
+      }
+
+      document.execCommand('createLink', false, linkUrl);
+      this.editor.events.emit('block:update', { blockId: this.editor.selection.activeBlockId });
+    }
   }
 
   _executeCommand(cmd, buttonEl) {
@@ -163,27 +259,24 @@ export class FloatingToolbar {
       case 'strikethrough':
         this.editor.selection.toggleFormat('strikethrough');
         break;
-      case 'code':
-        // Wrap in <code> tag
-        if (this.editor.selection.hasFormat('CODE')) {
-          // Unwrap — execCommand doesn't have a 'code' command, so we manually handle
-          document.execCommand('removeFormat', false, null);
-        } else {
-          const range = this.editor.selection.getRange();
-          if (range && !range.collapsed) {
-            const code = document.createElement('code');
-            code.className = 'be-inline-code';
-            try {
-              range.surroundContents(code);
-            } catch (e) {
-              const fragment = range.extractContents();
-              code.appendChild(fragment);
-              range.insertNode(code);
-            }
+      case 'link':
+        this._showLinkPopover(buttonEl);
+        break;
+      case 'alignLeft':
+      case 'alignCenter':
+      case 'alignRight': {
+        const sel = window.getSelection();
+        if (sel && sel.anchorNode) {
+          const editable = sel.anchorNode.nodeType === Node.ELEMENT_NODE
+            ? sel.anchorNode.closest('[contenteditable="true"]')
+            : sel.anchorNode.parentElement?.closest('[contenteditable="true"]');
+          if (editable) {
+            editable.style.textAlign = cmd === 'alignLeft' ? 'left' : cmd === 'alignCenter' ? 'center' : 'right';
+            this.editor.events.emit('block:update', { blockId: this.editor.selection.activeBlockId });
           }
         }
-        this.editor.events.emit('block:update', { blockId: this.editor.selection.activeBlockId });
         break;
+      }
       case 'textColor':
         this._bgColorPicker.hide();
         if (this._colorPicker.el.style.display === 'block') {
@@ -226,9 +319,24 @@ export class FloatingToolbar {
         case 'strikethrough':
           active = sel.hasFormat('STRIKE') || sel.hasFormat('S');
           break;
-        case 'code':
-          active = sel.hasFormat('CODE');
+        case 'alignLeft':
+        case 'alignCenter':
+        case 'alignRight': {
+          active = false;
+          const userSel = window.getSelection();
+          if (userSel && userSel.anchorNode) {
+            const editable = userSel.anchorNode.nodeType === Node.ELEMENT_NODE
+              ? userSel.anchorNode.closest('[contenteditable="true"]')
+              : userSel.anchorNode.parentElement?.closest('[contenteditable="true"]');
+            if (editable) {
+              const align = editable.style.textAlign;
+              if (cmd === 'alignLeft' && align === 'left') active = true;
+              if (cmd === 'alignCenter' && align === 'center') active = true;
+              if (cmd === 'alignRight' && align === 'right') active = true;
+            }
+          }
           break;
+        }
       }
 
       btn.classList.toggle('be-toolbar-btn--active', active);
@@ -240,5 +348,6 @@ export class FloatingToolbar {
     this._colorPicker?.destroy();
     this._bgColorPicker?.destroy();
     this.el?.remove();
+    this._linkPopover?.remove();
   }
 }

@@ -8,8 +8,8 @@ export class SkillsBlock extends BaseBlock {
     }
     
     this._data = {
-      category: data?.data?.category || 'Technical Skills',
-      skills: data?.data?.skills || 'JavaScript, React, Node.js, CSS, HTML'
+      category: data?.data?.category || '',
+      skills: data?.data?.skills || ''
     };
   }
 
@@ -20,11 +20,13 @@ export class SkillsBlock extends BaseBlock {
     const catEl = document.createElement('div');
     catEl.className = 'be-skills-category';
     catEl.contentEditable = true;
+    catEl.dataset.placeholder = 'Category (e.g. Technical Skills)';
     catEl.innerHTML = this._data.category;
     
     const skillsEl = document.createElement('div');
     skillsEl.className = 'be-skills-list';
     skillsEl.contentEditable = true;
+    skillsEl.dataset.placeholder = 'Add skills separated by commas...';
     skillsEl.innerHTML = this._data.skills;
 
     this.contentEl.appendChild(catEl);
@@ -36,8 +38,31 @@ export class SkillsBlock extends BaseBlock {
       this.editor.events.emit('block:update', { blockId: this.id });
     };
 
+    const handleEmptyState = (el) => {
+      if (el.innerHTML.trim() === '' || el.innerHTML === '<br>') {
+        el.innerHTML = '';
+        el.classList.add('empty');
+      } else {
+        el.classList.remove('empty');
+      }
+    };
+
     [catEl, skillsEl].forEach(el => {
-      el.addEventListener('input', syncData);
+      if(!el.innerHTML) el.classList.add('empty');
+      el.addEventListener('input', () => {
+        handleEmptyState(el);
+        syncData();
+      });
+      el.addEventListener('blur', () => handleEmptyState(el));
+      
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (el === catEl) {
+            skillsEl.focus();
+          }
+        }
+      });
     });
 
     this.setupKeyboardHandlers(skillsEl);
