@@ -108,7 +108,7 @@ export class DragManager {
         pageIndex: newPageIndex
       });
 
-      // Detect implicit column drop zones
+      // Detect side-by-side drop zones
       this._clearDropHighlights();
       
       const elements = document.elementsFromPoint(e.clientX, e.clientY);
@@ -122,7 +122,6 @@ export class DragManager {
         const rect = targetBlockEl.getBoundingClientRect();
         const relativeX = e.clientX - rect.left;
         const width = rect.width;
-        const isColumnsBlock = targetBlockEl.dataset.blockType === 'columns';
 
         if (relativeX < width * 0.2) {
           targetBlockEl.classList.add('be-block--drop-left');
@@ -130,17 +129,6 @@ export class DragManager {
         } else if (relativeX > width * 0.8) {
           targetBlockEl.classList.add('be-block--drop-right');
           this._currentDropTarget = { id: targetBlockEl.dataset.blockId, side: 'right' };
-        } else if (isColumnsBlock) {
-          // Find if we are over a specific column
-          const colEl = elements.find(el => el.classList && el.classList.contains('be-column'));
-          if (colEl) {
-            colEl.classList.add('be-column--drag-over');
-            this._currentDropTarget = { 
-              id: targetBlockEl.dataset.blockId, 
-              side: 'inside', 
-              colIndex: parseInt(colEl.dataset.colIndex, 10) 
-            };
-          }
         } else {
           this._currentDropTarget = null;
         }
@@ -176,7 +164,6 @@ export class DragManager {
   _clearDropHighlights() {
     document.querySelectorAll('.be-block--drop-left').forEach(el => el.classList.remove('be-block--drop-left'));
     document.querySelectorAll('.be-block--drop-right').forEach(el => el.classList.remove('be-block--drop-right'));
-    document.querySelectorAll('.be-column--drag-over').forEach(el => el.classList.remove('be-column--drag-over'));
   }
 
   _onMouseUp(e) {
@@ -192,14 +179,16 @@ export class DragManager {
       if (this._currentDropTarget) {
         const target = this._currentDropTarget;
         if (target.side === 'left' || target.side === 'right') {
-          this.editor.createColumnsAt(target.id, block.id, target.side);
-        } else if (target.side === 'inside') {
-          this.editor.moveBlockInto(block.id, target.id, target.colIndex);
+          this.editor.snapBlockBeside(target.id, block.id, target.side);
         }
         this._currentDropTarget = null;
       }
 
       this.editor.history.captureImmediate();
+      
+      // Reflow to resolve any overlaps caused by the drop
+      this.editor.reflowBlocks();
+      
       this._dragState = null;
     }
 
