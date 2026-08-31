@@ -23,7 +23,7 @@ import { ParagraphBlock } from '../blocks/ParagraphBlock.js';
 import { HeadingBlock } from '../blocks/HeadingBlock.js';
 import { BulletListBlock } from '../blocks/BulletListBlock.js';
 import { NumberedListBlock } from '../blocks/NumberedListBlock.js';
-import { ColumnsBlock } from '../blocks/ColumnsBlock.js';
+
 
 // Resume blocks
 import { ContactBlock } from '../blocks/resume/ContactBlock.js';
@@ -82,13 +82,27 @@ export class BlockEditor {
     this.history.attach(this.container);
 
     // Listen for changes
-    this.events.on('block:update', () => this._emitChange());
-    this.events.on('block:add', () => this._emitChange());
-    this.events.on('block:remove', () => this._emitChange());
+    this.events.on('block:update', () => {
+      this._emitChange();
+      this._scheduleReflow();
+    });
+    this.events.on('block:add', () => {
+      this._emitChange();
+      this._scheduleReflow();
+    });
+    this.events.on('block:remove', () => {
+      this._emitChange();
+      this._scheduleReflow();
+    });
     this.events.on('block:move', () => this._emitChange());
 
     // Capture initial state
     this.history.captureImmediate();
+
+    // Reflow after initial render so blocks don't overlap
+    requestAnimationFrame(() => {
+      this.reflowBlocks();
+    });
   }
 
   setZoom(level) {
@@ -147,13 +161,7 @@ export class BlockEditor {
       keywords: ['numbered', 'list', 'ordered', 'ol'],
     });
 
-    this.registry.register('columns', {
-      blockClass: ColumnsBlock,
-      label: 'Columns',
-      icon: '◫',
-      description: 'Multi-column layout block',
-      keywords: ['column', 'layout', 'grid', 'flex'],
-    });
+
 
     // Resume Blocks
     this.registry.register('contact', {
@@ -238,16 +246,12 @@ export class BlockEditor {
   }
 
   _loadBlocks(blocksData) {
-    // Sort so parent blocks (like columns) are loaded before their children
-    const sorted = [...blocksData].sort((a, b) => {
-      const aIsChild = a.position && a.position.parentId;
-      const bIsChild = b.position && b.position.parentId;
-      if (aIsChild && !bIsChild) return 1;
-      if (!aIsChild && bIsChild) return -1;
-      return 0;
-    });
-
-    sorted.forEach(blockData => {
+    blocksData.forEach(blockData => {
+      // Strip any legacy parent/column data
+      if (blockData.position) {
+        delete blockData.position.parentId;
+        delete blockData.position.colIndex;
+      }
       this.addBlock(blockData, { silent: true });
     });
   }
@@ -312,17 +316,8 @@ export class BlockEditor {
     this.blocks.set(block.id, block);
     this.blockOrder.push(block.id);
     
-    // Check if the block belongs in a column
-    if (block.position && block.position.parentId) {
-      const parent = this.blocks.get(block.position.parentId);
-      if (parent && parent.type === 'columns') {
-        const colEl = parent.getColumnEl(block.position.colIndex || 0);
-        colEl.appendChild(el);
-      }
-    } else {
-      const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
-      pageContentEl.appendChild(el);
-    }
+    const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
+    pageContentEl.appendChild(el);
 
     if (!options.silent) {
       this.events.emit('block:add', { blockId: block.id });
@@ -336,18 +331,12 @@ export class BlockEditor {
     const afterBlock = this.blocks.get(afterBlockId);
     
     if (afterBlock) {
-      // Inherit parent hierarchy
-      if (afterBlock.position && afterBlock.position.parentId) {
-        blockData.position = blockData.position || {};
-        blockData.position.parentId = afterBlock.position.parentId;
-        blockData.position.colIndex = afterBlock.position.colIndex;
-      } else {
-        // Default to slightly below the anchor block on canvas
-        blockData.position = blockData.position || {
-          ...afterBlock.position,
-          y: afterBlock.position.y + afterBlock.position.h + 10
-        };
-      }
+      // Use actual rendered height to place below the anchor block
+      const actualHeight = this._getActualBlockHeight(afterBlock);
+      blockData.position = blockData.position || {
+        ...afterBlock.position,
+        y: afterBlock.position.y + actualHeight + 12
+      };
     }
     
     const newBlock = this.addBlock(blockData, { silent: true });
@@ -457,90 +446,52 @@ export class BlockEditor {
   }
 
   /**
-   * Move a block into a specific column of a parent block.
+   * Snap a dropped block beside a target block visually as side-by-side columns.
+   * Both blocks remain independent — no container, no parent-child relationship.
+   * @param {string} targetBlockId
+   * @param {string} droppedBlockId
+   * @param {'left'|'right'} side
    */
-  moveBlockInto(blockId, parentId, colIndex) {
-    const block = this.blocks.get(blockId);
-    const parent = this.blocks.get(parentId);
-    if (!block || !parent || parent.type !== 'columns') return;
-
-    block.position.parentId = parentId;
-    block.position.colIndex = colIndex;
-    
-    const colEl = parent.getColumnEl(colIndex);
-    colEl.appendChild(block.el);
-    
-    // Trigger CSS overrides
-    block.updateStyles();
-    this.events.emit('block:move', { blockId });
-    this.history.captureImmediate();
-  }
-
-  /**
-   * Remove a block from its parent and place it on the canvas.
-   */
-  moveBlockOut(blockId, absolutePosition) {
-    const block = this.blocks.get(blockId);
-    if (!block) return;
-
-    block.position = { ...block.position, ...absolutePosition };
-    delete block.position.parentId;
-    delete block.position.colIndex;
-
-    const pageContentEl = this._getPageContentEl(block.position.pageIndex || 0);
-    pageContentEl.appendChild(block.el);
-
-    block.updateStyles();
-    this.events.emit('block:move', { blockId });
-    this.history.captureImmediate();
-  }
-
-  /**
-   * Automatically wrap a block into a columns block when another block is dropped next to it.
-   */
-  createColumnsAt(targetBlockId, droppedBlockId, side) {
+  snapBlockBeside(targetBlockId, droppedBlockId, side) {
     const targetBlock = this.blocks.get(targetBlockId);
     const droppedBlock = this.blocks.get(droppedBlockId);
     if (!targetBlock || !droppedBlock) return;
 
-    if (targetBlock.type === 'columns') {
-      // Append a new column
-      const newColIndex = targetBlock.addColumn();
-      
-      // If dropped on left, reorder DOM (optional) or just use flex-order, 
-      // but for simplicity, let's just append and move the dropped block there.
-      // To strictly support 'left', we can manipulate DOM:
-      if (side === 'left') {
-        const newCol = targetBlock.getColumnEl(newColIndex);
-        targetBlock.contentEl.insertBefore(newCol, targetBlock.contentEl.firstChild);
-        // We'd have to re-index all cols, so just rely on DOM order and move the block into newColIndex
-        // Actually to be robust, we'll just put it in newColIndex. 
-      }
+    const GAP = 16;
+    const totalWidth = targetBlock.position.w;
+    const halfWidth = Math.round((totalWidth - GAP) / 2);
 
-      this.moveBlockInto(droppedBlockId, targetBlockId, newColIndex);
-      return;
+    if (side === 'right') {
+      // Target stays on the left, shrinks to half
+      targetBlock.position.w = halfWidth;
+      targetBlock.updateStyles();
+
+      // Dropped block snaps to the right of target
+      droppedBlock.position.x = targetBlock.position.x + halfWidth + GAP;
+      droppedBlock.position.y = targetBlock.position.y;
+      droppedBlock.position.w = halfWidth;
+      droppedBlock.position.pageIndex = targetBlock.position.pageIndex;
+    } else {
+      // Dropped block takes the left position
+      droppedBlock.position.x = targetBlock.position.x;
+      droppedBlock.position.y = targetBlock.position.y;
+      droppedBlock.position.w = halfWidth;
+      droppedBlock.position.pageIndex = targetBlock.position.pageIndex;
+
+      // Target slides right
+      targetBlock.position.x = targetBlock.position.x + halfWidth + GAP;
+      targetBlock.position.w = halfWidth;
+      targetBlock.updateStyles();
     }
 
-    // Standard block -> create new ColumnsBlock
-    const colsData = {
-      type: 'columns',
-      position: { ...targetBlock.position, w: 714 }, // Full width A4
-      columnsCount: 2
-    };
+    // Ensure dropped block is on the correct page
+    const pageContentEl = this._getPageContentEl(droppedBlock.position.pageIndex || 0);
+    pageContentEl.appendChild(droppedBlock.el);
 
-    // Prevent recursive column wrapping issues
-    delete colsData.position.parentId;
-    delete colsData.position.colIndex;
-
-    const colsBlock = this.addBlock(colsData, { silent: true });
-
-    // Place target block in column 0 or 1
-    const targetCol = side === 'left' ? 1 : 0;
-    const droppedCol = side === 'left' ? 0 : 1;
-
-    // Move both blocks into the new columns block
-    this.moveBlockInto(targetBlock.id, colsBlock.id, targetCol);
-    this.moveBlockInto(droppedBlock.id, colsBlock.id, droppedCol);
+    droppedBlock.updateStyles();
+    this.events.emit('block:move', { blockId: targetBlockId });
+    this.events.emit('block:move', { blockId: droppedBlockId });
+    this.history.captureImmediate();
   }
 
   /**
@@ -640,6 +591,96 @@ export class BlockEditor {
     const nextId = this.blockOrder[idx + 1];
     const nextBlock = this.blocks.get(nextId);
     nextBlock?.focus('start');
+  }
+
+  /**
+   * Get the actual rendered height of a block element (accounts for height:auto).
+   * @param {import('../blocks/BaseBlock.js').BaseBlock} block
+   * @returns {number}
+   */
+  _getActualBlockHeight(block) {
+    if (block.el) {
+      const rendered = block.el.getBoundingClientRect();
+      const zoom = this.getZoom();
+      // Divide by zoom since getBoundingClientRect includes CSS transforms
+      return rendered.height / zoom;
+    }
+    return block.position.h;
+  }
+
+  /**
+   * Check if two blocks overlap horizontally (share x-range).
+   * @param {Object} posA
+   * @param {Object} posB
+   * @returns {boolean}
+   */
+  _blocksOverlapHorizontally(posA, posB) {
+    const aLeft = posA.x;
+    const aRight = posA.x + posA.w;
+    const bLeft = posB.x;
+    const bRight = posB.x + posB.w;
+    // They overlap if one starts before the other ends
+    return aLeft < bRight && bLeft < aRight;
+  }
+
+  /**
+   * Reflow blocks to prevent overlaps. Blocks on the same page that share
+   * horizontal space are sorted by Y position and pushed down if they overlap,
+   * enforcing a minimum gap between them.
+   * @param {Object} [options]
+   * @param {string} [options.skipBlockId] - Block ID to skip (e.g. block being dragged)
+   */
+  reflowBlocks(options = {}) {
+    const MIN_GAP = 12; // Minimum pixels between blocks
+
+    // Group blocks by page
+    const pageGroups = new Map();
+    for (const id of this.blockOrder) {
+      if (options.skipBlockId && id === options.skipBlockId) continue;
+      const block = this.blocks.get(id);
+      if (!block) continue;
+      const pageIdx = block.position.pageIndex || 0;
+      if (!pageGroups.has(pageIdx)) pageGroups.set(pageIdx, []);
+      pageGroups.get(pageIdx).push(block);
+    }
+
+    // For each page, sort by Y and resolve overlaps
+    for (const [, pageBlocks] of pageGroups) {
+      // Sort blocks top-to-bottom
+      pageBlocks.sort((a, b) => a.position.y - b.position.y);
+
+      // For each block, check against all blocks above it
+      for (let i = 1; i < pageBlocks.length; i++) {
+        const current = pageBlocks[i];
+
+        for (let j = 0; j < i; j++) {
+          const above = pageBlocks[j];
+
+          // Only push down if they share horizontal space
+          if (!this._blocksOverlapHorizontally(above.position, current.position)) {
+            continue;
+          }
+
+          const aboveBottom = above.position.y + this._getActualBlockHeight(above);
+          const requiredY = aboveBottom + MIN_GAP;
+
+          if (current.position.y < requiredY) {
+            current.position.y = requiredY;
+            current.updateStyles();
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Schedule a debounced reflow to prevent overlap after content changes.
+   */
+  _scheduleReflow() {
+    clearTimeout(this._reflowTimeout);
+    this._reflowTimeout = setTimeout(() => {
+      this.reflowBlocks();
+    }, 50);
   }
 
   /** Destroy the editor and clean up. */

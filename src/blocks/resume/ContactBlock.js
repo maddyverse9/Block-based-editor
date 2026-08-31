@@ -17,26 +17,21 @@ export class ContactBlock extends BaseBlock {
   render() {
     this.contentEl = document.createElement('div');
     this.contentEl.className = 'be-resume-contact';
-    this.contentEl.style.textAlign = 'center';
     
     const nameEl = document.createElement('div');
+    nameEl.className = 'be-resume-contact-name';
     nameEl.contentEditable = true;
     nameEl.innerHTML = this._data.name;
-    nameEl.style.fontSize = '2em';
-    nameEl.style.fontWeight = 'bold';
-    nameEl.style.color = 'var(--be-primary)';
     
     const titleEl = document.createElement('div');
+    titleEl.className = 'be-resume-contact-title';
     titleEl.contentEditable = true;
     titleEl.innerHTML = this._data.title;
-    titleEl.style.fontSize = '1.2em';
-    titleEl.style.marginBottom = '4px';
     
     const infoEl = document.createElement('div');
+    infoEl.className = 'be-resume-contact-info';
     infoEl.contentEditable = true;
     infoEl.innerHTML = this._data.contactInfo;
-    infoEl.style.color = 'var(--be-text-muted)';
-    infoEl.style.fontSize = '0.9em';
 
     this.contentEl.appendChild(nameEl);
     this.contentEl.appendChild(titleEl);

@@ -97,7 +97,8 @@ export class BaseBlock {
     this.el.style.left = `${this.position.x}px`;
     this.el.style.top = `${this.position.y}px`;
     this.el.style.width = `${this.position.w}px`;
-    this.el.style.height = `${this.position.h}px`;
+    this.el.style.minHeight = `${this.position.h}px`;
+    this.el.style.height = 'auto';
     this.el.style.zIndex = this.position.zIndex;
   }
 

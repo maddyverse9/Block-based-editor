@@ -20,28 +20,24 @@ export class EducationBlock extends BaseBlock {
     this.contentEl.className = 'be-resume-education';
     
     const header = document.createElement('div');
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.fontWeight = 'bold';
-    header.style.marginBottom = '4px';
+    header.className = 'be-education-header';
 
     const leftGroup = document.createElement('div');
     
     const degreeEl = document.createElement('div');
+    degreeEl.className = 'be-education-degree';
     degreeEl.contentEditable = true;
     degreeEl.innerHTML = this._data.degree;
     
     const instEl = document.createElement('div');
+    instEl.className = 'be-education-institution';
     instEl.contentEditable = true;
     instEl.innerHTML = this._data.institution;
-    instEl.style.color = 'var(--be-text-muted)';
-    instEl.style.fontWeight = 'normal';
     
     const dateEl = document.createElement('div');
+    dateEl.className = 'be-education-date';
     dateEl.contentEditable = true;
     dateEl.innerHTML = this._data.date;
-    dateEl.style.color = 'var(--be-text-muted)';
-    dateEl.style.fontWeight = 'normal';
 
     leftGroup.appendChild(degreeEl);
     leftGroup.appendChild(instEl);
@@ -49,9 +45,9 @@ export class EducationBlock extends BaseBlock {
     header.appendChild(dateEl);
 
     const descEl = document.createElement('div');
+    descEl.className = 'be-education-description';
     descEl.contentEditable = true;
     descEl.innerHTML = this._data.description;
-    descEl.style.fontSize = '0.9em';
 
     this.contentEl.appendChild(header);
     this.contentEl.appendChild(descEl);

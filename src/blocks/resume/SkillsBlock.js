@@ -16,19 +16,16 @@ export class SkillsBlock extends BaseBlock {
   render() {
     this.contentEl = document.createElement('div');
     this.contentEl.className = 'be-resume-skills';
-    this.contentEl.style.display = 'flex';
-    this.contentEl.style.gap = '16px';
     
     const catEl = document.createElement('div');
+    catEl.className = 'be-skills-category';
     catEl.contentEditable = true;
     catEl.innerHTML = this._data.category;
-    catEl.style.fontWeight = 'bold';
-    catEl.style.whiteSpace = 'nowrap';
     
     const skillsEl = document.createElement('div');
+    skillsEl.className = 'be-skills-list';
     skillsEl.contentEditable = true;
     skillsEl.innerHTML = this._data.skills;
-    skillsEl.style.flex = '1';
 
     this.contentEl.appendChild(catEl);
     this.contentEl.appendChild(skillsEl);

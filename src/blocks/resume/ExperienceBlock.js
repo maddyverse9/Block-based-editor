@@ -21,28 +21,23 @@ export class ExperienceBlock extends BaseBlock {
     
     const header = document.createElement('div');
     header.className = 'be-experience-header';
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.fontWeight = 'bold';
-    header.style.marginBottom = '8px';
 
     const leftGroup = document.createElement('div');
     
     const roleEl = document.createElement('div');
+    roleEl.className = 'be-experience-role';
     roleEl.contentEditable = true;
     roleEl.innerHTML = this._data.role;
-    roleEl.style.fontSize = '1.1em';
     
     const compEl = document.createElement('div');
+    compEl.className = 'be-experience-company';
     compEl.contentEditable = true;
     compEl.innerHTML = this._data.company;
-    compEl.style.color = 'var(--be-primary)';
     
     const dateEl = document.createElement('div');
+    dateEl.className = 'be-experience-date';
     dateEl.contentEditable = true;
     dateEl.innerHTML = this._data.date;
-    dateEl.style.color = 'var(--be-text-muted)';
-    dateEl.style.fontWeight = 'normal';
 
     leftGroup.appendChild(roleEl);
     leftGroup.appendChild(compEl);
@@ -50,6 +45,7 @@ export class ExperienceBlock extends BaseBlock {
     header.appendChild(dateEl);
 
     const descEl = document.createElement('div');
+    descEl.className = 'be-experience-description';
     descEl.contentEditable = true;
     descEl.innerHTML = this._data.description;
 
