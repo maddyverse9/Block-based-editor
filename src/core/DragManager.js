@@ -108,7 +108,6 @@ export class DragManager {
         pageIndex: newPageIndex
       });
 
-      // Detect side-by-side drop zones
       this._clearDropHighlights();
       
       const elements = document.elementsFromPoint(e.clientX, e.clientY);
@@ -121,17 +120,29 @@ export class DragManager {
       if (targetBlockEl) {
         const rect = targetBlockEl.getBoundingClientRect();
         const relativeX = e.clientX - rect.left;
+        const relativeY = e.clientY - rect.top;
         const width = rect.width;
+        const height = rect.height;
+
+        let side = '';
+        let dropClass = '';
 
         if (relativeX < width * 0.2) {
-          targetBlockEl.classList.add('be-block--drop-left');
-          this._currentDropTarget = { id: targetBlockEl.dataset.blockId, side: 'left' };
+          side = 'left';
+          dropClass = 'be-block--drop-left';
         } else if (relativeX > width * 0.8) {
-          targetBlockEl.classList.add('be-block--drop-right');
-          this._currentDropTarget = { id: targetBlockEl.dataset.blockId, side: 'right' };
+          side = 'right';
+          dropClass = 'be-block--drop-right';
+        } else if (relativeY < height * 0.5) {
+          side = 'top';
+          dropClass = 'be-block--drop-top';
         } else {
-          this._currentDropTarget = null;
+          side = 'bottom';
+          dropClass = 'be-block--drop-bottom';
         }
+
+        targetBlockEl.classList.add(dropClass);
+        this._currentDropTarget = { id: targetBlockEl.dataset.blockId, side };
       } else {
         this._currentDropTarget = null;
       }
@@ -162,8 +173,10 @@ export class DragManager {
   }
 
   _clearDropHighlights() {
-    document.querySelectorAll('.be-block--drop-left').forEach(el => el.classList.remove('be-block--drop-left'));
-    document.querySelectorAll('.be-block--drop-right').forEach(el => el.classList.remove('be-block--drop-right'));
+    const classes = ['be-block--drop-left', 'be-block--drop-right', 'be-block--drop-top', 'be-block--drop-bottom'];
+    classes.forEach(cls => {
+      document.querySelectorAll(`.${cls}`).forEach(el => el.classList.remove(cls));
+    });
   }
 
   _onMouseUp(e) {
@@ -178,16 +191,12 @@ export class DragManager {
 
       if (this._currentDropTarget) {
         const target = this._currentDropTarget;
-        if (target.side === 'left' || target.side === 'right') {
-          this.editor.snapBlockBeside(target.id, block.id, target.side);
-        }
+        this.editor.layout.moveBlock(block.id, target.id, target.side);
         this._currentDropTarget = null;
       }
 
       this.editor.history.captureImmediate();
-      
-      // Reflow to resolve any overlaps caused by the drop
-      this.editor.reflowBlocks();
+      this.editor.layout.computePositions();
       
       this._dragState = null;
     }
@@ -196,6 +205,7 @@ export class DragManager {
       const { block } = this._resizeState;
       block.el.classList.remove('be-block--dragging');
       this.editor.history.captureImmediate();
+      this.editor.layout.computePositions();
       this._resizeState = null;
     }
   }

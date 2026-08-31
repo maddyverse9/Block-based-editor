@@ -22,7 +22,7 @@ export class BaseBlock {
     this.contentEl = null;
 
     // Canvas positioning properties
-    this.position = data.position || { x: 50, y: 50, w: 400, h: 100, pageIndex: 0, zIndex: 1 };
+    this.position = data.position || { x: 40, y: 40, w: 714, h: 100, pageIndex: 0, zIndex: 1 };
   }
 
   /**
