@@ -17,6 +17,7 @@ import { DragManager } from './DragManager.js';
 import { CommandPalette } from '../ui/CommandPalette.js';
 import { FloatingToolbar } from '../ui/FloatingToolbar.js';
 import { BlockMenu } from '../ui/BlockMenu.js';
+import { LayoutManager } from './LayoutManager.js';
 
 // Block types
 import { ParagraphBlock } from '../blocks/ParagraphBlock.js';
@@ -60,6 +61,7 @@ export class BlockEditor {
     this.selection = new SelectionManager(this);
     this.history = new HistoryManager(this);
     this.dragManager = new DragManager(this);
+    this.layout = new LayoutManager(this);
 
     // UI components
     this.commandPalette = new CommandPalette(this);
@@ -75,6 +77,8 @@ export class BlockEditor {
     // Load initial blocks or create an empty paragraph
     if (options.initialBlocks && options.initialBlocks.length > 0) {
       this._loadBlocks(options.initialBlocks);
+      this.layout.initFromBlocks(this.blockOrder);
+      this.layout.computePositions();
     }
 
     // Attach UI
@@ -254,6 +258,7 @@ export class BlockEditor {
       }
       this.addBlock(blockData, { silent: true });
     });
+    // Build initial layout from flat block list if no layout info exists (handled in deserialize)
   }
 
   // ──────────────────────────────────────────────
@@ -267,6 +272,7 @@ export class BlockEditor {
   getJSON() {
     return {
       version: '1.0',
+      layout: this.layout.serialize(),
       blocks: this.blockOrder.map(id => {
         const block = this.blocks.get(id);
         return block ? block.serialize() : null;
@@ -297,6 +303,15 @@ export class BlockEditor {
     if (json.blocks && json.blocks.length > 0) {
       this._loadBlocks(json.blocks);
     }
+    
+    if (json.layout) {
+      this.layout.deserialize(json.layout);
+    } else {
+      // Fallback for older json without layout
+      this.layout.initFromBlocks(this.blockOrder);
+    }
+    
+    this.layout.computePositions();
 
     if (!options.skipHistory) {
       this.history.captureImmediate();
@@ -329,22 +344,15 @@ export class BlockEditor {
 
   addBlockAfter(afterBlockId, blockData) {
     const afterBlock = this.blocks.get(afterBlockId);
-    
-    if (afterBlock) {
-      // Use actual rendered height to place below the anchor block
-      const actualHeight = this._getActualBlockHeight(afterBlock);
-      blockData.position = blockData.position || {
-        ...afterBlock.position,
-        y: afterBlock.position.y + actualHeight + 12
-      };
-    }
-    
     const newBlock = this.addBlock(blockData, { silent: true });
     
-    if (afterBlock && afterBlock.el && afterBlock.el.parentNode) {
-      // Move DOM element to precisely after the sibling
-      afterBlock.el.parentNode.insertBefore(newBlock.el, afterBlock.el.nextSibling);
+    if (afterBlock) {
+      this.layout.insertBlockInSameColumn(newBlock.id, afterBlock.id);
+    } else {
+      this.layout.initFromBlocks(this.blockOrder); // simple fallback
     }
+    
+    this.layout.computePositions();
     
     this.events.emit('block:add', { blockId: newBlock.id });
     newBlock.focus('start');
@@ -360,11 +368,14 @@ export class BlockEditor {
     const block = this.blocks.get(blockId);
     if (!block) return;
 
+    this.layout.removeBlock(blockId);
+
     const idx = this.blockOrder.indexOf(blockId);
     block.destroy();
     this.blocks.delete(blockId);
     this.blockOrder.splice(idx, 1);
 
+    this.layout.computePositions();
     this.events.emit('block:remove', { blockId });
   }
 
@@ -422,7 +433,7 @@ export class BlockEditor {
   }
 
   /**
-   * Move a block to a new position.
+   * Move a block visually (used by drag manager for ghosting).
    * @param {string} blockId
    * @param {Object} newPosition
    */
@@ -442,55 +453,6 @@ export class BlockEditor {
     }
 
     this.events.emit('block:move', { blockId });
-    this.history.captureImmediate();
-  }
-
-  /**
-   * Snap a dropped block beside a target block visually as side-by-side columns.
-   * Both blocks remain independent — no container, no parent-child relationship.
-   * @param {string} targetBlockId
-   * @param {string} droppedBlockId
-   * @param {'left'|'right'} side
-   */
-  snapBlockBeside(targetBlockId, droppedBlockId, side) {
-    const targetBlock = this.blocks.get(targetBlockId);
-    const droppedBlock = this.blocks.get(droppedBlockId);
-    if (!targetBlock || !droppedBlock) return;
-
-    const GAP = 16;
-    const totalWidth = targetBlock.position.w;
-    const halfWidth = Math.round((totalWidth - GAP) / 2);
-
-    if (side === 'right') {
-      // Target stays on the left, shrinks to half
-      targetBlock.position.w = halfWidth;
-      targetBlock.updateStyles();
-
-      // Dropped block snaps to the right of target
-      droppedBlock.position.x = targetBlock.position.x + halfWidth + GAP;
-      droppedBlock.position.y = targetBlock.position.y;
-      droppedBlock.position.w = halfWidth;
-      droppedBlock.position.pageIndex = targetBlock.position.pageIndex;
-    } else {
-      // Dropped block takes the left position
-      droppedBlock.position.x = targetBlock.position.x;
-      droppedBlock.position.y = targetBlock.position.y;
-      droppedBlock.position.w = halfWidth;
-      droppedBlock.position.pageIndex = targetBlock.position.pageIndex;
-
-      // Target slides right
-      targetBlock.position.x = targetBlock.position.x + halfWidth + GAP;
-      targetBlock.position.w = halfWidth;
-      targetBlock.updateStyles();
-    }
-
-    // Ensure dropped block is on the correct page
-    const pageContentEl = this._getPageContentEl(droppedBlock.position.pageIndex || 0);
-    pageContentEl.appendChild(droppedBlock.el);
-
-    droppedBlock.updateStyles();
-    this.events.emit('block:move', { blockId: targetBlockId });
-    this.events.emit('block:move', { blockId: droppedBlockId });
     this.history.captureImmediate();
   }
 
@@ -609,77 +571,12 @@ export class BlockEditor {
   }
 
   /**
-   * Check if two blocks overlap horizontally (share x-range).
-   * @param {Object} posA
-   * @param {Object} posB
-   * @returns {boolean}
-   */
-  _blocksOverlapHorizontally(posA, posB) {
-    const aLeft = posA.x;
-    const aRight = posA.x + posA.w;
-    const bLeft = posB.x;
-    const bRight = posB.x + posB.w;
-    // They overlap if one starts before the other ends
-    return aLeft < bRight && bLeft < aRight;
-  }
-
-  /**
-   * Reflow blocks to prevent overlaps. Blocks on the same page that share
-   * horizontal space are sorted by Y position and pushed down if they overlap,
-   * enforcing a minimum gap between them.
-   * @param {Object} [options]
-   * @param {string} [options.skipBlockId] - Block ID to skip (e.g. block being dragged)
-   */
-  reflowBlocks(options = {}) {
-    const MIN_GAP = 12; // Minimum pixels between blocks
-
-    // Group blocks by page
-    const pageGroups = new Map();
-    for (const id of this.blockOrder) {
-      if (options.skipBlockId && id === options.skipBlockId) continue;
-      const block = this.blocks.get(id);
-      if (!block) continue;
-      const pageIdx = block.position.pageIndex || 0;
-      if (!pageGroups.has(pageIdx)) pageGroups.set(pageIdx, []);
-      pageGroups.get(pageIdx).push(block);
-    }
-
-    // For each page, sort by Y and resolve overlaps
-    for (const [, pageBlocks] of pageGroups) {
-      // Sort blocks top-to-bottom
-      pageBlocks.sort((a, b) => a.position.y - b.position.y);
-
-      // For each block, check against all blocks above it
-      for (let i = 1; i < pageBlocks.length; i++) {
-        const current = pageBlocks[i];
-
-        for (let j = 0; j < i; j++) {
-          const above = pageBlocks[j];
-
-          // Only push down if they share horizontal space
-          if (!this._blocksOverlapHorizontally(above.position, current.position)) {
-            continue;
-          }
-
-          const aboveBottom = above.position.y + this._getActualBlockHeight(above);
-          const requiredY = aboveBottom + MIN_GAP;
-
-          if (current.position.y < requiredY) {
-            current.position.y = requiredY;
-            current.updateStyles();
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Schedule a debounced reflow to prevent overlap after content changes.
+   * Schedule a debounced compute to layout blocks.
    */
   _scheduleReflow() {
     clearTimeout(this._reflowTimeout);
     this._reflowTimeout = setTimeout(() => {
-      this.reflowBlocks();
+      this.layout.computePositions();
     }, 50);
   }
 

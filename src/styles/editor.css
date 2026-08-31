@@ -154,6 +154,19 @@
   box-shadow: 4px 0 0 0 var(--be-primary) !important;
 }
 
+.be-block--drop-top {
+  box-shadow: 0 -4px 0 0 var(--be-primary) !important;
+}
+
+.be-block--drop-bottom {
+  box-shadow: 0 4px 0 0 var(--be-primary) !important;
+}
+
+.be-block--drop-center {
+  background: var(--be-primary-bg) !important;
+  outline: 2px solid var(--be-primary);
+}
+
 
 
 /* ─── Block Controls ─── */
