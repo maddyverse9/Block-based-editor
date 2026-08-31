@@ -20,6 +20,7 @@ export { ContactBlock } from './blocks/resume/ContactBlock.js';
 export { ExperienceBlock } from './blocks/resume/ExperienceBlock.js';
 export { EducationBlock } from './blocks/resume/EducationBlock.js';
 export { SkillsBlock } from './blocks/resume/SkillsBlock.js';
+export { DividerBlock } from './blocks/resume/DividerBlock.js';
 
 // Utilities
 export { Exporter } from './core/Exporter.js';

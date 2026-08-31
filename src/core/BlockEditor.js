@@ -31,6 +31,7 @@ import { ContactBlock } from '../blocks/resume/ContactBlock.js';
 import { ExperienceBlock } from '../blocks/resume/ExperienceBlock.js';
 import { EducationBlock } from '../blocks/resume/EducationBlock.js';
 import { SkillsBlock } from '../blocks/resume/SkillsBlock.js';
+import { DividerBlock } from '../blocks/resume/DividerBlock.js';
 
 export class BlockEditor {
   /**
@@ -105,7 +106,7 @@ export class BlockEditor {
 
     // Reflow after initial render so blocks don't overlap
     requestAnimationFrame(() => {
-      this.reflowBlocks();
+      this.layout.computePositions();
     });
   }
 
@@ -198,6 +199,14 @@ export class BlockEditor {
       icon: '🛠️',
       description: 'Skills list',
       keywords: ['skills', 'tools', 'resume'],
+    });
+
+    this.registry.register('divider', {
+      blockClass: DividerBlock,
+      label: 'Divider',
+      icon: '➖',
+      description: 'Horizontal divider line',
+      keywords: ['divider', 'line', 'hr', 'separator'],
     });
   }
 
@@ -391,6 +400,8 @@ export class BlockEditor {
 
     const idx = this.blockOrder.indexOf(blockId);
     const oldEl = oldBlock.el;
+
+    let blockData = { type: newType, data: { ...data } };
 
     // Maintain original position and z-index
     blockData.position = { ...oldBlock.position };

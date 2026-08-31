@@ -15,44 +15,62 @@ const sampleBlocks = [
     data: {
       name: 'Alice Developer',
       title: 'Senior Software Engineer',
-      contactInfo: 'alice@example.com • github.com/alice'
+      links: [
+        { id: 'l1', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>', text: 'alice@example.com', url: 'mailto:alice@example.com' },
+        { id: 'l2', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>', text: '(555) 123-4567', url: 'tel:+15551234567' },
+        { id: 'l3', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"></circle></svg>', text: 'linkedin.com/in/alice', url: 'https://linkedin.com/in/alice' }
+      ]
     }
   },
   {
+    type: 'divider',
+    position: { x: 40, y: 150, w: 714, h: 20, pageIndex: 0, zIndex: 2 },
+    data: {}
+  },
+  {
     type: 'experience',
-    position: { x: 40, y: 150, w: 714, h: 120, pageIndex: 0, zIndex: 2 },
+    position: { x: 40, y: 190, w: 714, h: 120, pageIndex: 0, zIndex: 3 },
     data: {
       company: 'Tech Innovators Inc.',
       role: 'Lead Engineer',
-      date: '2021 - Present',
+      location: 'San Francisco, CA',
+      startDate: 'Jan 2021',
+      endDate: 'Present',
+      isCurrent: true,
       description: '<ul><li>Led the migration from legacy monolith to microservices.</li><li>Improved performance by 40% across the board.</li></ul>'
     }
   },
   {
     type: 'experience',
-    position: { x: 40, y: 290, w: 714, h: 100, pageIndex: 0, zIndex: 3 },
+    position: { x: 40, y: 340, w: 714, h: 100, pageIndex: 0, zIndex: 4 },
     data: {
       company: 'Web Solutions LLC',
       role: 'Frontend Developer',
-      date: '2018 - 2021',
+      location: 'New York, NY',
+      startDate: 'Mar 2018',
+      endDate: 'Dec 2020',
+      isCurrent: false,
       description: '<ul><li>Built responsive web applications using React.</li></ul>'
     }
   },
   {
     type: 'education',
-    position: { x: 40, y: 410, w: 714, h: 80, pageIndex: 0, zIndex: 4 },
+    position: { x: 40, y: 470, w: 714, h: 80, pageIndex: 0, zIndex: 5 },
     data: {
       institution: 'University of Science',
       degree: 'B.S. Computer Science',
-      date: '2014 - 2018',
+      location: 'Boston, MA',
+      startDate: '2014',
+      endDate: '2018',
+      gpa: '3.8/4.0',
       description: 'Graduated with Honors.'
     }
   },
   {
     type: 'skills',
-    position: { x: 40, y: 510, w: 714, h: 50, pageIndex: 0, zIndex: 5 },
+    position: { x: 40, y: 580, w: 714, h: 50, pageIndex: 0, zIndex: 6 },
     data: {
-      category: 'Languages & Tools:',
+      category: 'Languages & Tools',
       skills: 'JavaScript, TypeScript, React, Node.js, CSS, HTML, Git'
     }
   }
